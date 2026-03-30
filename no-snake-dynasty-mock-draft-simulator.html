@@ -1,0 +1,1459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dynasty Rookie Mock Draft Simulator — RotoWire</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%237c3aed'/><text x='16' y='23' font-size='20' text-anchor='middle' fill='white'>⚡</text></svg>">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.26.2/babel.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body, #root { height: 100%; width: 100%; overflow: hidden; }
+  body { background: #0f0f1e; font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(124,58,237,0.3); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(124,58,237,0.5); }
+  @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes pulseGlow { 0%, 100% { box-shadow: 0 0 8px rgba(124,58,237,0.3); } 50% { box-shadow: 0 0 20px rgba(124,58,237,0.5); } }
+  select option { background: #1a1a2e; color: #e2e8f0; }
+  button:focus-visible, select:focus-visible, input:focus-visible {
+    outline: 2px solid rgba(124,58,237,0.7);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useCallback, useMemo, useRef } = React;
+
+// ============================================================================
+// RANKINGS DATA — SUPERFLEX — Replace with API call when ready
+// Source: KeepTradeCut.com dynasty rookie rankings (crowdsourced, .5 PPR Superflex)
+// Last updated: March 2026
+// ============================================================================
+const SUPERFLEX_RANKINGS = [
+  { rank: 1,  name: "Jeremiyah Love",      pos: "RB", posRank: "RB4",   tier: 1,  value: 7425 },
+  { rank: 2,  name: "Fernando Mendoza",     pos: "QB", posRank: "QB15",  tier: 2,  value: 5617 },
+  { rank: 3,  name: "Carnell Tate",         pos: "WR", posRank: "WR18",  tier: 2,  value: 5211 },
+  { rank: 4,  name: "Makai Lemon",          pos: "WR", posRank: "WR19",  tier: 2,  value: 5085 },
+  { rank: 5,  name: "Jordyn Tyson",         pos: "WR", posRank: "WR25",  tier: 2,  value: 4814 },
+  { rank: 6,  name: "Kenyon Sadiq",         pos: "TE", posRank: "TE9",   tier: 2,  value: 4335 },
+  { rank: 7,  name: "KC Concepcion",        pos: "WR", posRank: "WR33",  tier: 3,  value: 3744 },
+  { rank: 8,  name: "Omar Cooper Jr.",      pos: "WR", posRank: "WR47",  tier: 3,  value: 3392 },
+  { rank: 9,  name: "Denzel Boston",        pos: "WR", posRank: "WR51",  tier: 3,  value: 3362 },
+  { rank: 10, name: "Jadarian Price",       pos: "RB", posRank: "RB36",  tier: 4,  value: 2991 },
+  { rank: 11, name: "Ty Simpson",           pos: "QB", posRank: "QB29",  tier: 4,  value: 2982 },
+  { rank: 12, name: "Jonah Coleman",        pos: "RB", posRank: "RB42",  tier: 4,  value: 2765 },
+  { rank: 13, name: "Eli Stowers",          pos: "TE", posRank: "TE24",  tier: 4,  value: 2582 },
+  { rank: 14, name: "Nicholas Singleton",   pos: "RB", posRank: "RB56",  tier: 4,  value: 2438 },
+  { rank: 15, name: "Elijah Sarratt",       pos: "WR", posRank: "WR82",  tier: 4,  value: 2404 },
+  { rank: 16, name: "Mike Washington Jr.",  pos: "RB", posRank: "RB62",  tier: 5,  value: 2230 },
+  { rank: 17, name: "Emmett Johnson",       pos: "RB", posRank: "RB64",  tier: 5,  value: 2156 },
+  { rank: 18, name: "Zachariah Branch",     pos: "WR", posRank: "WR93",  tier: 5,  value: 2138 },
+  { rank: 19, name: "Trinidad Chambliss",   pos: "QB", posRank: "QB39",  tier: 5,  value: 2101 },
+  { rank: 20, name: "Chris Brazzell II",    pos: "WR", posRank: "WR95",  tier: 5,  value: 2098 },
+  { rank: 21, name: "Garrett Nussmeier",    pos: "QB", posRank: "QB41",  tier: 5,  value: 2045 },
+  { rank: 22, name: "Chris Bell",           pos: "WR", posRank: "WR98",  tier: 6,  value: 1931 },
+  { rank: 23, name: "Malachi Fields",       pos: "WR", posRank: "WR103", tier: 6,  value: 1881 },
+  { rank: 24, name: "Kaytron Allen",        pos: "RB", posRank: "RB77",  tier: 6,  value: 1865 },
+  { rank: 25, name: "Ja'Kobi Lane",         pos: "WR", posRank: "WR111", tier: 6,  value: 1757 },
+  { rank: 26, name: "Germie Bernard",       pos: "WR", posRank: "WR116", tier: 6,  value: 1712 },
+  { rank: 27, name: "Skyler Bell",          pos: "WR", posRank: "WR135", tier: 7,  value: 1419 },
+  { rank: 28, name: "Max Klare",            pos: "TE", posRank: "TE52",  tier: 7,  value: 1390 },
+  { rank: 29, name: "Antonio Williams",     pos: "WR", posRank: "WR137", tier: 7,  value: 1319 },
+  { rank: 30, name: "Michael Trigg",        pos: "TE", posRank: "TE54",  tier: 7,  value: 1263 },
+  { rank: 31, name: "Kevin Coleman",        pos: "WR", posRank: "WR140", tier: 7,  value: 1252 },
+  { rank: 32, name: "Demond Claiborne",     pos: "RB", posRank: "RB101", tier: 8,  value: 1178 },
+  { rank: 33, name: "Le'Veon Moss",         pos: "RB", posRank: "RB109", tier: 9,  value: 1061 },
+  { rank: 34, name: "Jam Miller",           pos: "RB", posRank: "RB110", tier: 9,  value: 1041 },
+  { rank: 35, name: "Ted Hurst",            pos: "WR", posRank: "WR158", tier: 9,  value: 1029 },
+  { rank: 36, name: "J'Mari Taylor",        pos: "RB", posRank: "RB112", tier: 9,  value: 1019 },
+  { rank: 37, name: "Cade Klubnik",         pos: "QB", posRank: "QB63",  tier: 9,  value: 1011 },
+  { rank: 38, name: "Seth McGowan",         pos: "RB", posRank: "RB115", tier: 9,  value: 1003 },
+  { rank: 39, name: "Deion Burks",          pos: "WR", posRank: "WR162", tier: 9,  value: 972  },
+  { rank: 40, name: "Jack Endries",         pos: "TE", posRank: "TE66",  tier: 9,  value: 963  },
+  { rank: 41, name: "CJ Daniels",           pos: "WR", posRank: "WR164", tier: 9,  value: 955  },
+  { rank: 42, name: "Barion Brown",         pos: "WR", posRank: "WR181", tier: 10, value: 752  },
+  { rank: 43, name: "Luke Altmyer",         pos: "QB", posRank: "QB69",  tier: 10, value: 729  },
+  // ── Expansion tier (ranks 44-67) — end-of-draft depth, value 200 ──────────
+  { rank: 44, name: "Adam Randall",         pos: "RB", posRank: "RB117", tier: 10, value: 200 },
+  { rank: 45, name: "Justin Joly",          pos: "TE", posRank: "TE68",  tier: 10, value: 200 },
+  { rank: 46, name: "Oscar Delp",           pos: "TE", posRank: "TE70",  tier: 10, value: 200 },
+  { rank: 47, name: "Carson Beck",          pos: "QB", posRank: "QB71",  tier: 10, value: 200 },
+  { rank: 48, name: "Drew Allar",           pos: "QB", posRank: "QB73",  tier: 10, value: 200 },
+  { rank: 49, name: "Terion Stewart",       pos: "RB", posRank: "RB119", tier: 10, value: 200 },
+  { rank: 50, name: "Reggie Virgil",        pos: "WR", posRank: "WR183", tier: 10, value: 200 },
+  { rank: 51, name: "Brenen Thompson",      pos: "WR", posRank: "WR185", tier: 10, value: 200 },
+  { rank: 52, name: "Bryce Lance",          pos: "WR", posRank: "WR187", tier: 10, value: 200 },
+  { rank: 53, name: "Jeff Caldwell",        pos: "WR", posRank: "WR189", tier: 10, value: 200 },
+  { rank: 54, name: "Diego Pavia",          pos: "QB", posRank: "QB75",  tier: 10, value: 200 },
+  { rank: 55, name: "Cole Payton",          pos: "QB", posRank: "QB77",  tier: 10, value: 200 },
+  { rank: 56, name: "Rahsul Faison",        pos: "RB", posRank: "RB121", tier: 10, value: 200 },
+  { rank: 57, name: "Caleb Douglas",        pos: "WR", posRank: "WR191", tier: 10, value: 200 },
+  { rank: 58, name: "Jalon Daniels",        pos: "QB", posRank: "QB79",  tier: 10, value: 200 },
+  { rank: 59, name: "Taylen Green",         pos: "QB", posRank: "QB81",  tier: 10, value: 200 },
+  { rank: 60, name: "Dallen Bentley",       pos: "TE", posRank: "TE72",  tier: 10, value: 200 },
+  { rank: 61, name: "Eli Raridon",          pos: "TE", posRank: "TE74",  tier: 10, value: 200 },
+  { rank: 62, name: "Sam Roush",            pos: "TE", posRank: "TE76",  tier: 10, value: 200 },
+  { rank: 63, name: "Jaydn Ott",            pos: "RB", posRank: "RB123", tier: 10, value: 200 },
+  { rank: 64, name: "Desmond Reid",         pos: "RB", posRank: "RB125", tier: 10, value: 200 },
+  { rank: 65, name: "Robert Henry Jr.",     pos: "RB", posRank: "RB127", tier: 10, value: 200 },
+  { rank: 66, name: "Roman Hemby",          pos: "RB", posRank: "RB129", tier: 10, value: 200 },
+  { rank: 67, name: "Noah Whittington",     pos: "RB", posRank: "RB131", tier: 10, value: 200 },
+];
+
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+const POS_COLORS = {
+  QB: { bg: "rgba(239,68,68,0.15)",   text: "#f87171", border: "rgba(239,68,68,0.3)"   },
+  RB: { bg: "rgba(56,189,248,0.15)",  text: "#38bdf8", border: "rgba(56,189,248,0.3)"  },
+  WR: { bg: "rgba(52,211,153,0.15)",  text: "#34d399", border: "rgba(52,211,153,0.3)"  },
+  TE: { bg: "rgba(251,191,36,0.15)",  text: "#fbbf24", border: "rgba(251,191,36,0.3)"  },
+};
+
+const TIER_COLORS = [
+  "", "#c084fc", "#a78bfa", "#818cf8", "#60a5fa", "#38bdf8",
+  "#22d3ee", "#2dd4bf", "#34d399", "#4ade80", "#a3e635"
+];
+
+const ARCHETYPES = [
+  { id: "balanced",   weight: 0.30 },
+  { id: "bpa",        weight: 0.15 },
+  { id: "contender",  weight: 0.15 },
+  { id: "rebuilder",  weight: 0.15 },
+  { id: "qb_needy",   weight: 0.08 },
+  { id: "rb_needy",   weight: 0.08 },
+  { id: "wr_needy",   weight: 0.08 },
+];
+
+const TE_DESCRIPTIONS = {
+  off:     "No bonus — standard dynasty value for TEs",
+  "te+":   "+20% TE dynasty value (approx. 1 bonus pt/reception)",
+  "te++":  "+40% TE dynasty value (approx. 1.5 bonus pts/reception)",
+  "te+++": "+60% TE dynasty value (approx. 2+ bonus pts/reception)",
+};
+
+// ============================================================================
+// HELPERS
+// ============================================================================
+function weightedRandomArchetype() {
+  const r = Math.random();
+  let c = 0;
+  for (const a of ARCHETYPES) { c += a.weight; if (r <= c) return a.id; }
+  return "balanced";
+}
+
+function fmtPick(round, pick) {
+  return round + "." + String(pick).padStart(2, "0");
+}
+
+// Centralised check: does this draft slot belong to the user?
+// Works for both default (single slot) and custom (multi-pick) modes.
+function checkIsUserSlot(slot, settings) {
+  if (!slot) return false;
+  if (settings.customPicksEnabled && settings.userPicks && settings.userPicks.length > 0) {
+    return settings.userPicks.some(p => p.round === slot.round && p.pick === slot.pick);
+  }
+  return slot.team === settings.draftSlot;
+}
+
+// ============================================================================
+// DRAFT ENGINE
+// ============================================================================
+function buildAdjustedBoard(settings) {
+  let players = SUPERFLEX_RANKINGS.map(p => ({ ...p, adjValue: p.value }));
+
+  if (!settings.superflex) {
+    players = players.map(p => p.pos === "QB" ? { ...p, adjValue: Math.round(p.value * 0.55) } : p);
+  }
+  if (settings.scoring === "ppr") {
+    players = players.map(p => {
+      if (p.pos === "WR") return { ...p, adjValue: Math.round(p.adjValue * 1.05) };
+      if (p.pos === "RB") return { ...p, adjValue: Math.round(p.adjValue * 1.03) };
+      return p;
+    });
+  } else if (settings.scoring === "standard") {
+    players = players.map(p => p.pos === "RB" ? { ...p, adjValue: Math.round(p.adjValue * 1.07) } : p);
+  }
+
+  const tepMult = { off: 1, "te+": 1.20, "te++": 1.40, "te+++": 1.60 }[settings.tePremium] || 1;
+  if (tepMult > 1) players = players.map(p => p.pos === "TE" ? { ...p, adjValue: Math.round(p.adjValue * tepMult) } : p);
+
+  if (settings.numWR === 3)
+    players = players.map(p => (p.pos === "WR" && p.rank >= 8 && p.rank <= 30) ? { ...p, adjValue: Math.round(p.adjValue * 1.08) } : p);
+  if (settings.numRB === 2)
+    players = players.map(p => p.pos === "RB" ? { ...p, adjValue: Math.round(p.adjValue * 1.05) } : p);
+  if (settings.numFlex === 2)
+    players = players.map(p => ((p.pos === "WR" || p.pos === "RB") && p.rank >= 15 && p.rank <= 40) ? { ...p, adjValue: Math.round(p.adjValue * 1.03) } : p);
+
+  players.sort((a, b) => b.adjValue - a.adjValue);
+  return players.map((p, i) => ({ ...p, adjRank: i + 1 }));
+}
+
+function generateTeamProfiles(leagueSize, userSlot) {
+  const profiles = [];
+  for (let i = 1; i <= leagueSize; i++) {
+    profiles.push(i === userSlot
+      ? { team: i, isUser: true,  archetype: null,                    aggressiveness: 0           }
+      : { team: i, isUser: false, archetype: weightedRandomArchetype(), aggressiveness: Math.random() }
+    );
+  }
+  return profiles;
+}
+
+function generateDraftOrder(leagueSize, numRounds) {
+  const order = [];
+  for (let r = 1; r <= numRounds; r++) {
+    for (let p = 1; p <= leagueSize; p++) order.push({ round: r, pick: p, team: p });
+  }
+  return order.map((o, i) => ({ ...o, overall: i + 1 }));
+}
+
+function aiMakePick(available, profile, settings) {
+  if (!available.length) return null;
+  const sorted = [...available].sort((a, b) => b.adjValue - a.adjValue);
+
+  let windowSize = 5;
+  if (profile.aggressiveness < 0.3) windowSize = 3;
+  else if (profile.aggressiveness > 0.7) windowSize = 8;
+  const win = sorted.slice(0, Math.min(windowSize, sorted.length));
+
+  const biased = win.map(p => {
+    let bias = 1.0;
+    const a = profile.archetype;
+    if (a === "rb_needy"  && p.pos === "RB") bias = 1.15;
+    else if (a === "wr_needy"  && p.pos === "WR") bias = 1.10;
+    else if (a === "qb_needy"  && p.pos === "QB") bias = settings.superflex ? 1.25 : 1.05;
+    else if (a === "rebuilder" && (p.pos === "QB" || p.pos === "TE")) bias = 1.10;
+    else if (a === "contender" && p.pos === "RB") bias = 1.08;
+    const noise = 1 + (Math.random() * 0.06 - 0.03);
+    return { ...p, pickValue: p.adjValue * bias * noise };
+  });
+
+  const topTier = biased[0]?.tier;
+  const sameTier = biased.filter(p => p.tier === topTier);
+  const other    = biased.filter(p => p.tier !== topTier);
+  for (let i = sameTier.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [sameTier[i], sameTier[j]] = [sameTier[j], sameTier[i]];
+  }
+  const final = [...sameTier, ...other].sort((a, b) => b.pickValue - a.pickValue);
+  const pick = final[0];
+  if (pick.tier > sorted[0].tier + 1) return sorted[0];
+  return pick;
+}
+
+function calculateDraftGrade(userPicks, allPicks, leagueSize, board) {
+  let totalValue = 0, expectedValue = 0;
+  userPicks.forEach(pick => {
+    totalValue += pick.player.adjValue;
+    const exp = board.find(p => p.adjRank === pick.overall);
+    expectedValue += exp ? exp.adjValue : 0;
+  });
+  const r = expectedValue > 0 ? totalValue / expectedValue : 1;
+  if (r >= 1.15) return "A+";
+  if (r >= 1.08) return "A";
+  if (r >= 1.02) return "A-";
+  if (r >= 0.97) return "B+";
+  if (r >= 0.92) return "B";
+  if (r >= 0.87) return "B-";
+  if (r >= 0.80) return "C+";
+  if (r >= 0.73) return "C";
+  if (r >= 0.65) return "C-";
+  return "D";
+}
+
+// ============================================================================
+// SHARED STYLES
+// ============================================================================
+const S = {
+  page: {
+    minHeight: "100vh", color: "#e2e8f0",
+    background: "linear-gradient(145deg, #0f0f1e 0%, #1a1a2e 40%, #16162a 100%)",
+    fontFamily: "'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif",
+  },
+  gradText: {
+    background: "linear-gradient(135deg, #c084fc, #7c3aed)",
+    WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
+  },
+};
+
+// ============================================================================
+// ROTOWIRE LOGO
+// ============================================================================
+function RotoWireLogo({ size = "md" }) {
+  const logoSize = size === "sm" ? 16 : 20;
+  const textSize = size === "sm" ? 12 : 14;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+      <svg width={logoSize} height={logoSize} viewBox="0 0 20 20" style={{ flexShrink: 0 }}>
+        <rect width="20" height="20" rx="4" fill="#7c3aed"/>
+        <text x="10" y="14.5" fontSize="12" textAnchor="middle" fill="white" fontWeight="900"
+          fontFamily="'Segoe UI', Arial, sans-serif">R</text>
+      </svg>
+      <span style={{ fontSize: textSize, fontWeight: 800, letterSpacing: -0.3, lineHeight: 1 }}>
+        <span style={{ color: "#e2e8f0" }}>Roto</span><span style={{ color: "#a78bfa" }}>Wire</span>
+      </span>
+    </div>
+  );
+}
+
+// ============================================================================
+// PICK GRID — lets the user select which picks they control
+// ============================================================================
+function PickGrid({ s, up }) {
+  const { leagueSize, numRounds, draftSlot, userPicks } = s;
+  const picks = userPicks || [];
+
+  const isSelected = (round, pick) => picks.some(p => p.round === round && p.pick === pick);
+  const isDefaultSlot = (pick) => pick === draftSlot;
+
+  const togglePick = (round, pick) => {
+    const exists = picks.some(p => p.round === round && p.pick === pick);
+    const next = exists
+      ? picks.filter(p => !(p.round === round && p.pick === pick))
+      : [...picks, { round, pick }];
+    up("userPicks", next);
+  };
+
+  const selectedCount = picks.length;
+
+  return (
+    <div style={{
+      background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)",
+      borderRadius: 10, padding: "14px 12px", marginTop: 8,
+    }}>
+      <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 10, lineHeight: 1.5 }}>
+        Click any pick to add or remove it. Your default slot ({draftSlot}) is pre-selected each round.
+        {selectedCount === 0 && (
+          <span style={{ color: "#f87171", marginLeft: 6, fontWeight: 600 }}>Select at least 1 pick.</span>
+        )}
+      </div>
+
+      {/* Grid — horizontally scrollable for large leagues */}
+      <div style={{ overflowX: "auto", paddingBottom: 4 }}>
+        <table style={{ borderCollapse: "separate", borderSpacing: "3px 3px", minWidth: "max-content" }}>
+          <thead>
+            <tr>
+              {/* Empty corner cell */}
+              <th style={{ width: 30, fontSize: 10, color: "#64748b", fontWeight: 600, textAlign: "left", paddingRight: 6, paddingBottom: 4 }}></th>
+              {Array.from({ length: leagueSize }, (_, i) => (
+                <th key={i + 1} style={{
+                  width: 38, fontSize: 10, fontWeight: 700, textAlign: "center", paddingBottom: 4,
+                  color: i + 1 === draftSlot ? "#a78bfa" : "#64748b",
+                }}>
+                  {i + 1 === draftSlot ? `★${i + 1}` : i + 1}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {Array.from({ length: numRounds }, (_, r) => (
+              <tr key={r + 1}>
+                <td style={{
+                  fontSize: 10, fontWeight: 700, color: "#64748b",
+                  paddingRight: 6, whiteSpace: "nowrap", verticalAlign: "middle",
+                }}>R{r + 1}</td>
+                {Array.from({ length: leagueSize }, (_, p) => {
+                  const round = r + 1;
+                  const pick  = p + 1;
+                  const sel   = isSelected(round, pick);
+                  const def   = isDefaultSlot(pick);
+                  // Color logic:
+                  // purple  = user's default slot (selected)
+                  // teal    = user's added/traded pick (selected, non-default)
+                  // dim     = not selected
+                  const bg     = sel ? (def ? "rgba(124,58,237,0.28)" : "rgba(56,189,248,0.22)") : "rgba(255,255,255,0.02)";
+                  const border = sel ? (def ? "rgba(124,58,237,0.55)" : "rgba(56,189,248,0.45)")  : "rgba(255,255,255,0.07)";
+                  const color  = sel ? (def ? "#c084fc"               : "#38bdf8")                : "#64748b";
+
+                  return (
+                    <td key={pick} style={{ padding: "2px", verticalAlign: "middle" }}>
+                      <button
+                        type="button"
+                        onClick={() => togglePick(round, pick)}
+                        title={sel ? `Remove ${fmtPick(round, pick)}` : `Add ${fmtPick(round, pick)}`}
+                        style={{
+                          display: "block", width: "100%", padding: "4px 2px", textAlign: "center",
+                          cursor: "pointer", borderRadius: 5, fontSize: 10, fontWeight: sel ? 700 : 400,
+                          background: bg, border: `1px solid ${border}`, color,
+                          transition: "all 0.1s", userSelect: "none", minWidth: 34,
+                          fontFamily: "inherit", lineHeight: 1.4,
+                        }}>
+                        {fmtPick(round, pick)}
+                      </button>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Legend + summary */}
+      <div style={{ display: "flex", gap: 16, marginTop: 10, alignItems: "center", flexWrap: "wrap" }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "#94a3b8" }}>
+          <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, background: "rgba(124,58,237,0.28)", border: "1px solid rgba(124,58,237,0.55)" }}></span>
+          Your slot
+        </span>
+        <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "#94a3b8" }}>
+          <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, background: "rgba(56,189,248,0.22)", border: "1px solid rgba(56,189,248,0.45)" }}></span>
+          Added / traded pick
+        </span>
+        {selectedCount > 0 && (
+          <span style={{ marginLeft: "auto", fontSize: 11, color: "#a78bfa", fontWeight: 600 }}>
+            {selectedCount} pick{selectedCount !== 1 ? "s" : ""} selected
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// SETUP SCREEN
+// ============================================================================
+function SetupScreen({ onStart, initialSettings }) {
+  const [s, setS] = useState(initialSettings || {
+    scoring: "half_ppr", customPPR: 0.75, leagueSize: 12, numRounds: 4,
+    draftSlot: 1, superflex: true, tePremium: "off", numWR: 2, numRB: 2, numFlex: 1,
+    customPicksEnabled: false, userPicks: null,
+  });
+  const up = (k, v) => setS(prev => ({ ...prev, [k]: v }));
+  const slots = Array.from({ length: s.leagueSize }, (_, i) => i + 1);
+
+  useEffect(() => { if (s.draftSlot > s.leagueSize) up("draftSlot", s.leagueSize); }, [s.leagueSize]);
+
+  // When the user enables custom draft order, initialise picks from the current slot
+  const toggleCustomOrder = () => {
+    const next = !s.customPicksEnabled;
+    if (next) {
+      const defaultPicks = Array.from({ length: s.numRounds }, (_, i) => ({ round: i + 1, pick: s.draftSlot }));
+      setS(prev => ({
+        ...prev,
+        customPicksEnabled: true,
+        userPicks: prev.userPicks || defaultPicks,
+      }));
+    } else {
+      up("customPicksEnabled", false);
+    }
+  };
+
+  // Guard: ensure we have at least one valid pick before starting
+  const canStart = !s.customPicksEnabled || (s.userPicks && s.userPicks.length > 0);
+
+  return (
+    <div style={{ ...S.page, height: "100%", padding: "24px 16px", overflowY: "auto" }}>
+      <div style={{ maxWidth: 600, margin: "0 auto" }}>
+
+        {/* RotoWire brand */}
+        <div style={{ marginBottom: 24 }}>
+          <RotoWireLogo />
+        </div>
+
+        <div style={{ textAlign: "center", marginBottom: 32 }}>
+          <div style={{
+            display: "inline-block", padding: "5px 14px", borderRadius: 20,
+            background: "rgba(124,58,237,0.2)", border: "1px solid rgba(124,58,237,0.3)",
+            fontSize: 11, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase",
+            color: "#a78bfa", marginBottom: 10,
+          }}>2026 Rookies</div>
+          <h1 style={{ fontSize: 26, fontWeight: 800, margin: "0 0 6px", letterSpacing: -0.5, ...S.gradText }}>
+            Dynasty Mock Draft
+          </h1>
+          <p style={{ color: "#94a3b8", fontSize: 13, margin: 0 }}>
+            Configure your league, pick your slot, draft against AI opponents.
+          </p>
+        </div>
+
+        <Label>Scoring Format</Label>
+        <Pills opts={[["ppr","PPR"],["half_ppr","Half PPR"],["standard","Standard"],["custom","Custom"]]}
+          val={s.scoring} set={v => up("scoring", v)} />
+        {s.scoring === "custom" && (
+          <div style={{ marginTop: 8 }}>
+            <span style={{ fontSize: 12, color: "#94a3b8" }}>PPR Value: </span>
+            <input type="number" step="0.25" min="0" max="2" value={s.customPPR}
+              onChange={e => up("customPPR", parseFloat(e.target.value) || 0)}
+              style={{ width: 65, padding: "4px 8px", borderRadius: 6, border: "1px solid rgba(124,58,237,0.3)", background: "rgba(255,255,255,0.05)", color: "#e2e8f0", fontSize: 13 }}
+            />
+          </div>
+        )}
+
+        <Label>League Setup</Label>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 6 }}>
+          <Sel label="Teams"     val={s.leagueSize} set={v => up("leagueSize",v)} opts={[8,10,12]} />
+          <Sel label="Rounds"    val={s.numRounds}  set={v => up("numRounds",v)}  opts={[1,2,3,4,5]}     />
+          <Sel label="Your Slot" val={s.draftSlot}  set={v => up("draftSlot",v)}  opts={slots}           />
+        </div>
+
+        <Label>Format</Label>
+        <Pills opts={[[true,"Superflex"],[false,"1QB"]]} val={s.superflex} set={v => up("superflex",v)} />
+
+        <Label>TE Premium</Label>
+        <Pills opts={[["off","Off"],["te+","TE+"],["te++","TE++"],["te+++","TE+++"]]} val={s.tePremium} set={v => up("tePremium",v)} />
+        <div style={{ marginTop: 7, fontSize: 11, color: "#94a3b8", fontStyle: "italic", minHeight: 16 }}>
+          {TE_DESCRIPTIONS[s.tePremium]}
+        </div>
+
+        <Label>Roster Settings</Label>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+          <div>
+            <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>Starting WRs</div>
+            <Pills opts={[[2,"2 WR"],[3,"3 WR"]]} val={s.numWR} set={v => up("numWR",v)} sm />
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>Starting RBs</div>
+            <Pills opts={[[1,"1 RB"],[2,"2 RB"]]} val={s.numRB} set={v => up("numRB",v)} sm />
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>FLEX Spots</div>
+            <Pills opts={[[1,"1 FLX"],[2,"2 FLX"]]} val={s.numFlex} set={v => up("numFlex",v)} sm />
+          </div>
+        </div>
+
+        {/* ── DRAFT ORDER ─────────────────────────────────────────────────── */}
+        <div style={{ marginTop: 20, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.2, color: "#7c3aed" }}>
+              Draft Order
+            </div>
+            <div style={{ fontSize: 11, color: "#64748b", marginTop: 3 }}>
+              Traded for extra picks? Control multiple slots.
+            </div>
+          </div>
+          <button onClick={toggleCustomOrder} style={{
+            padding: "6px 13px", borderRadius: 7, cursor: "pointer", fontSize: 12, fontWeight: 600,
+            flexShrink: 0,
+            border: s.customPicksEnabled ? "1px solid #7c3aed" : "1px solid rgba(148,163,184,0.15)",
+            background: s.customPicksEnabled ? "rgba(124,58,237,0.2)" : "rgba(255,255,255,0.03)",
+            color: s.customPicksEnabled ? "#c084fc" : "#94a3b8",
+            transition: "all 0.15s",
+          }}>
+            {s.customPicksEnabled ? "✓ Customized" : "Customize"}
+          </button>
+        </div>
+
+        {/* Pick grid — only shown when custom mode is on */}
+        {s.customPicksEnabled && <PickGrid s={s} up={up} />}
+        {/* ─────────────────────────────────────────────────────────────────── */}
+
+        <button
+          onClick={() => canStart && onStart(s)}
+          disabled={!canStart}
+          style={{
+            display: "block", width: "100%", marginTop: 28, padding: "13px 0", borderRadius: 10,
+            border: "none",
+            background: canStart ? "linear-gradient(135deg, #7c3aed, #6d28d9)" : "rgba(255,255,255,0.05)",
+            color: canStart ? "#fff" : "#64748b",
+            fontSize: 15, fontWeight: 700,
+            cursor: canStart ? "pointer" : "not-allowed",
+            letterSpacing: 0.5,
+            boxShadow: canStart ? "0 4px 20px rgba(124,58,237,0.35)" : "none",
+          }}>
+          {canStart ? "Start Draft" : "Select at least 1 pick to continue"}
+        </button>
+
+        {/* RotoWire Premium CTA */}
+        <div style={{
+          textAlign: "center", marginTop: 28, paddingTop: 18,
+          borderTop: "1px solid rgba(255,255,255,0.06)",
+          fontSize: 12, color: "#94a3b8", lineHeight: 1.6,
+        }}>
+          Get expert Dynasty analysis, rankings &amp; player profiles with{" "}
+          <a href="https://www.rotowire.com/subscribe/pricing/" target="_blank" rel="noopener noreferrer"
+            style={{ color: "#a78bfa", fontWeight: 700, textDecoration: "none" }}>
+            RotoWire Premium
+          </a>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+function Label({ children }) {
+  return (
+    <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.2, color: "#7c3aed", marginTop: 20, marginBottom: 7 }}>
+      {children}
+    </div>
+  );
+}
+
+function Pills({ opts, val, set, sm }) {
+  return (
+    <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+      {opts.map(([v, label]) => {
+        const on = v === val;
+        return (
+          <button key={String(v)} onClick={() => set(v)} style={{
+            padding: sm ? "5px 10px" : "7px 14px", borderRadius: 7, cursor: "pointer",
+            border: on ? "1px solid #7c3aed" : "1px solid rgba(148,163,184,0.15)",
+            background: on ? "rgba(124,58,237,0.2)" : "rgba(255,255,255,0.03)",
+            color: on ? "#c084fc" : "#94a3b8", fontSize: 12, fontWeight: on ? 600 : 400,
+            transition: "all 0.15s",
+          }}>{label}</button>
+        );
+      })}
+    </div>
+  );
+}
+
+function Sel({ label, val, set, opts }) {
+  return (
+    <div>
+      <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>{label}</div>
+      <select value={val} onChange={e => set(parseInt(e.target.value))} style={{
+        width: "100%", padding: "8px 8px", borderRadius: 7,
+        border: "1px solid rgba(148,163,184,0.15)", background: "rgba(255,255,255,0.05)",
+        color: "#e2e8f0", fontSize: 13, cursor: "pointer",
+      }}>
+        {opts.map(o => <option key={o} value={o}>{o}</option>)}
+      </select>
+    </div>
+  );
+}
+
+// ============================================================================
+// PLAYER ROW
+// ============================================================================
+function PlayerRow({ player, onPick, active }) {
+  const pc = POS_COLORS[player.pos];
+  const [hover, setHover] = useState(false);
+  return (
+    <div
+      onClick={() => active && onPick(player)}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      role={active ? "button" : undefined}
+      tabIndex={active ? 0 : undefined}
+      onKeyDown={active ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onPick(player); } } : undefined}
+      style={{
+        display: "flex", alignItems: "center", gap: 9, padding: "10px 10px", borderRadius: 7,
+        cursor: active ? "pointer" : "default",
+        background: active && hover ? "rgba(124,58,237,0.12)" : "rgba(255,255,255,0.015)",
+        borderBottom: "1px solid rgba(255,255,255,0.06)", transition: "background 0.15s",
+      }}>
+      <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b", width: 22, textAlign: "right", flexShrink: 0 }}>
+        {player.adjRank}
+      </span>
+      <span style={{
+        display: "inline-block", padding: "2px 6px", borderRadius: 4, fontSize: 11, fontWeight: 700,
+        background: pc.bg, color: pc.text, border: "1px solid " + pc.border,
+        flexShrink: 0, width: 30, textAlign: "center",
+      }}>{player.pos}</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "#e2e8f0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          {player.name}
+        </div>
+        <div style={{ fontSize: 11, color: "#64748b" }}>{player.posRank}</div>
+      </div>
+      <div style={{ textAlign: "right", flexShrink: 0 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: "#a78bfa" }}>{player.adjValue.toLocaleString()}</div>
+        <div style={{ fontSize: 11, color: TIER_COLORS[player.tier] || "#64748b", fontWeight: 600 }}>T{player.tier}</div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// PICK CARD (history sidebar)
+// ============================================================================
+function PickCard({ pick, isUser, anim }) {
+  const pc = POS_COLORS[pick.player.pos];
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", gap: 7, padding: "7px 9px", borderRadius: 5, marginBottom: 2,
+      background: isUser ? "rgba(124,58,237,0.12)" : "rgba(255,255,255,0.02)",
+      border: isUser ? "1px solid rgba(124,58,237,0.25)" : "1px solid rgba(255,255,255,0.06)",
+      animation: anim ? "fadeSlideIn 0.35s ease" : "none",
+    }}>
+      <span style={{ fontSize: 11, color: "#64748b", fontWeight: 600, width: 28, flexShrink: 0 }}>
+        {fmtPick(pick.round, pick.pick)}
+      </span>
+      <span style={{ fontSize: 11, fontWeight: 700, padding: "1px 5px", borderRadius: 3, background: pc.bg, color: pc.text, border: "1px solid " + pc.border, flexShrink: 0 }}>
+        {pick.player.pos}
+      </span>
+      <span style={{ flex: 1, fontSize: 12, fontWeight: isUser ? 600 : 400, color: isUser ? "#e2e8f0" : "#94a3b8", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+        {pick.player.name}
+      </span>
+      <span style={{ fontSize: 11, color: "#64748b", flexShrink: 0 }}>Tm{pick.team}</span>
+    </div>
+  );
+}
+
+// ============================================================================
+// DRAFT SCREEN
+// ============================================================================
+function DraftScreen({ settings, onComplete, onBack }) {
+  const board    = useMemo(() => buildAdjustedBoard(settings), []);
+  const profiles = useMemo(() => generateTeamProfiles(settings.leagueSize, settings.draftSlot), []);
+  const order    = useMemo(() => generateDraftOrder(settings.leagueSize, settings.numRounds), []);
+
+  const picksRef    = useRef([]);
+  const idxRef      = useRef(0);
+  const skipRef     = useRef(false);
+  const timerRef    = useRef(null);
+  const histRef     = useRef(null);
+  const completedRef = useRef(false);
+
+  const [picks, setPicks]       = useState([]);
+  const [idx, setIdx]           = useState(0);
+  const [posFilter, setPosFilter] = useState("ALL");
+  const [search, setSearch]     = useState("");
+  const [tab, setTab]           = useState("board");
+  const [skip, setSkip]         = useState(false);
+  const [showBackConfirm, setShowBackConfirm] = useState(false);
+
+  const done   = idx >= order.length;
+  const slot   = order[idx];
+
+  // ── Core user-slot check — respects custom picks ─────────────────────────
+  const isUser = checkIsUserSlot(slot, settings);
+
+  const drafted  = useMemo(() => new Set(picks.map(p => p.player.name)), [picks]);
+  const avail    = useMemo(() => board.filter(p => !drafted.has(p.name)), [board, drafted]);
+  const filtered = useMemo(() => {
+    let l = avail;
+    if (posFilter !== "ALL") l = l.filter(p => p.pos === posFilter);
+    if (search) { const q = search.toLowerCase(); l = l.filter(p => p.name.toLowerCase().includes(q)); }
+    return l.sort((a, b) => b.adjValue - a.adjValue);
+  }, [avail, posFilter, search]);
+
+  // myPicks: all picks the user controls — accounts for custom pick sets
+  const myPicks = useMemo(() => picks.filter(p => checkIsUserSlot(p, settings)), [picks]);
+
+  useEffect(() => { if (histRef.current) histRef.current.scrollTop = histRef.current.scrollHeight; }, [picks.length]);
+  useEffect(() => { skipRef.current = skip; }, [skip]);
+
+  const makeAIPick = useCallback(() => {
+    const curIdx  = idxRef.current;
+    if (curIdx >= order.length) return;
+    const curSlot = order[curIdx];
+    // Skip if this slot belongs to the user (handles custom picks too)
+    if (!curSlot || checkIsUserSlot(curSlot, settings)) return;
+
+    const prof      = profiles.find(t => t.team === curSlot.team);
+    const draftedNm = new Set(picksRef.current.map(pk => pk.player.name));
+    const available = board.filter(p => !draftedNm.has(p.name));
+    const picked    = aiMakePick(available, prof, settings);
+    if (!picked) return;
+
+    const newPick = { ...curSlot, player: picked, anim: true };
+    picksRef.current = [...picksRef.current, newPick];
+    idxRef.current   = curIdx + 1;
+    setPicks([...picksRef.current]);
+    setIdx(idxRef.current);
+  }, [order, board, profiles, settings]);
+
+  const scheduleNextAI = useCallback(() => {
+    clearTimeout(timerRef.current);
+    const curIdx  = idxRef.current;
+    if (curIdx >= order.length) return;
+    const curSlot = order[curIdx];
+    // Stop scheduling if it's now the user's turn
+    if (!curSlot || checkIsUserSlot(curSlot, settings)) {
+      setSkip(false);
+      skipRef.current = false;
+      return;
+    }
+    const delay = skipRef.current ? 25 : 550;
+    timerRef.current = setTimeout(() => { makeAIPick(); scheduleNextAI(); }, delay);
+  }, [order, settings, makeAIPick]);
+
+  useEffect(() => {
+    if (done) return;
+    if (!isUser) { scheduleNextAI(); }
+    return () => clearTimeout(timerRef.current);
+  }, [idx, done, isUser, scheduleNextAI]);
+
+  useEffect(() => {
+    if (skip && !isUser && !done) { clearTimeout(timerRef.current); scheduleNextAI(); }
+  }, [skip]);
+
+  useEffect(() => {
+    if (done && picks.length > 0 && !completedRef.current) {
+      completedRef.current = true;
+      onComplete(picks, board, settings);
+    }
+  }, [done, picks]);
+
+  const userPick = (player) => {
+    if (!isUser) return;
+    const newPick = { ...slot, player, anim: true };
+    picksRef.current = [...picksRef.current, newPick];
+    idxRef.current   = idxRef.current + 1;
+    setPicks([...picksRef.current]);
+    setIdx(idxRef.current);
+  };
+
+  const [mobile, setMobile] = useState(window.innerWidth < 768);
+  useEffect(() => {
+    const h = () => setMobile(window.innerWidth < 768);
+    window.addEventListener("resize", h); return () => window.removeEventListener("resize", h);
+  }, []);
+
+  const roundDisp = slot ? "Round " + slot.round : "Complete";
+  const pickDisp  = slot ? fmtPick(slot.round, slot.pick) : "";
+
+  // ── Sub-panels ────────────────────────────────────────────────────────────
+  const HistoryPanel = (
+    <div ref={histRef} style={{ flex: 1, overflowY: "auto", padding: "0 3px" }}>
+      {!picks.length && <div style={{ textAlign: "center", color: "#64748b", fontSize: 12, marginTop: 28 }}>Picks appear here...</div>}
+      {picks.map((p, i) => (
+        <PickCard key={i} pick={p}
+          isUser={checkIsUserSlot(p, settings)}
+          anim={p.anim && i === picks.length - 1} />
+      ))}
+    </div>
+  );
+
+  const BoardPanel = (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      {isUser && (
+        <div style={{
+          background: "linear-gradient(135deg, rgba(124,58,237,0.25), rgba(99,102,241,0.15))",
+          border: "1px solid rgba(124,58,237,0.35)", borderRadius: 8, padding: "9px 12px",
+          marginBottom: 8, textAlign: "center", animation: "pulseGlow 2s infinite",
+        }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#c084fc" }}>YOUR PICK</div>
+          <div style={{ fontSize: 11, color: "#a78bfa" }}>Pick {pickDisp} — Select a player below</div>
+        </div>
+      )}
+      {!isUser && !done && (
+        <button onClick={() => setSkip(true)} disabled={skip} style={{
+          padding: "6px 12px", borderRadius: 6, border: "1px solid rgba(124,58,237,0.25)",
+          background: skip ? "rgba(124,58,237,0.08)" : "rgba(124,58,237,0.15)",
+          color: skip ? "#64748b" : "#a78bfa", fontSize: 12, fontWeight: 600,
+          cursor: skip ? "default" : "pointer", marginBottom: 8, alignSelf: "center",
+        }}>{skip ? "Skipping..." : "Skip to My Pick ⏭"}</button>
+      )}
+      <div style={{ display: "flex", gap: 5, alignItems: "center", marginBottom: 7, flexWrap: "wrap" }}>
+        <input type="text" placeholder="Search players..." value={search} onChange={e => setSearch(e.target.value)}
+          style={{ flex: 1, minWidth: 100, padding: "6px 9px", borderRadius: 6, border: "1px solid rgba(148,163,184,0.15)", background: "rgba(255,255,255,0.05)", color: "#e2e8f0", fontSize: 12 }}
+        />
+        {["ALL","QB","RB","WR","TE"].map(f => (
+          <button key={f} onClick={() => setPosFilter(f)} style={{
+            padding: "4px 9px", borderRadius: 5, fontSize: 11, fontWeight: 600, cursor: "pointer",
+            border: posFilter === f ? "1px solid " + (f === "ALL" ? "#7c3aed" : POS_COLORS[f]?.border) : "1px solid rgba(148,163,184,0.1)",
+            background: posFilter === f ? (f === "ALL" ? "rgba(124,58,237,0.2)" : POS_COLORS[f]?.bg) : "transparent",
+            color: posFilter === f ? (f === "ALL" ? "#c084fc" : POS_COLORS[f]?.text) : "#64748b",
+          }}>{f}</button>
+        ))}
+      </div>
+      <div style={{ flex: 1, overflowY: "auto" }}>
+        {filtered.map(p => <PlayerRow key={p.name} player={p} onPick={userPick} active={isUser} />)}
+        {!filtered.length && <div style={{ textAlign: "center", color: "#64748b", fontSize: 12, marginTop: 18 }}>No players available</div>}
+      </div>
+    </div>
+  );
+
+  const TeamPanel = (
+    <div style={{ padding: "0 3px" }}>
+      {!myPicks.length && <div style={{ textAlign: "center", color: "#64748b", fontSize: 12, marginTop: 28 }}>Your picks appear here...</div>}
+      {myPicks.map((p, i) => {
+        const pc = POS_COLORS[p.player.pos];
+        return (
+          <div key={i} style={{
+            display: "flex", alignItems: "center", gap: 7, padding: "8px 9px", borderRadius: 7, marginBottom: 3,
+            background: "rgba(124,58,237,0.08)", border: "1px solid rgba(124,58,237,0.15)",
+          }}>
+            <span style={{ fontSize: 11, color: "#7c3aed", fontWeight: 700, width: 28 }}>{fmtPick(p.round, p.pick)}</span>
+            <span style={{ fontSize: 11, fontWeight: 700, padding: "1px 5px", borderRadius: 3, background: pc.bg, color: pc.text, border: "1px solid " + pc.border }}>{p.player.pos}</span>
+            <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: "#e2e8f0" }}>{p.player.name}</span>
+            <span style={{ fontSize: 11, color: "#a78bfa", fontWeight: 600 }}>{p.player.adjValue.toLocaleString()}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  // Header — back button + logo + badge pick counter
+  const header = (
+    <div style={{
+      padding: "9px 16px", borderBottom: "1px solid rgba(255,255,255,0.06)",
+      display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <button onClick={() => setShowBackConfirm(true)} style={{
+          padding: "5px 10px", borderRadius: 6, border: "1px solid rgba(148,163,184,0.12)",
+          background: "transparent", color: "#64748b", fontSize: 11, fontWeight: 600,
+          cursor: "pointer", display: "flex", alignItems: "center", gap: 4,
+        }}>← Setup</button>
+        <RotoWireLogo size="sm" />
+        {!mobile && (
+          <span style={{ fontSize: 11, color: "#64748b" }}>
+            {settings.superflex ? "SF" : "1QB"} · {settings.leagueSize}T · {settings.scoring === "half_ppr" ? "½PPR" : settings.scoring === "ppr" ? "PPR" : settings.scoring === "standard" ? "Std" : "Custom"}
+            {settings.tePremium !== "off" ? " · " + settings.tePremium.toUpperCase() : ""}
+            {settings.customPicksEnabled ? " · Custom order" : ""}
+          </span>
+        )}
+      </div>
+      <div style={{
+        background: "rgba(124,58,237,0.12)", border: "1px solid rgba(124,58,237,0.25)",
+        borderRadius: 8, padding: "6px 12px", textAlign: "right",
+      }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: "#c084fc" }}>{roundDisp}</div>
+        <div style={{ fontSize: 11, color: "#94a3b8" }}>{pickDisp}{slot ? " · Team " + slot.team : ""}</div>
+      </div>
+    </div>
+  );
+
+  // Abandon-draft confirmation overlay
+  const backConfirmOverlay = showBackConfirm && (
+    <div style={{
+      position: "absolute", inset: 0, zIndex: 100,
+      background: "rgba(0,0,0,0.75)", backdropFilter: "blur(4px)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+    }}>
+      <div style={{
+        background: "#1a1a2e", border: "1px solid rgba(124,58,237,0.3)", borderRadius: 12,
+        padding: "24px 20px", maxWidth: 300, width: "90%", textAlign: "center",
+      }}>
+        <div style={{ fontSize: 15, fontWeight: 700, color: "#e2e8f0", marginBottom: 8 }}>Abandon Draft?</div>
+        <div style={{ fontSize: 12, color: "#94a3b8", marginBottom: 20, lineHeight: 1.6 }}>
+          Your current draft progress will be lost.
+        </div>
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={() => setShowBackConfirm(false)} style={{
+            flex: 1, padding: "9px 0", borderRadius: 8,
+            border: "1px solid rgba(148,163,184,0.2)", background: "transparent",
+            color: "#94a3b8", fontSize: 13, fontWeight: 600, cursor: "pointer",
+          }}>Cancel</button>
+          <button onClick={onBack} style={{
+            flex: 1, padding: "9px 0", borderRadius: 8,
+            border: "1px solid rgba(239,68,68,0.25)", background: "rgba(239,68,68,0.12)",
+            color: "#f87171", fontSize: 13, fontWeight: 700, cursor: "pointer",
+          }}>Abandon</button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ── MOBILE ────────────────────────────────────────────────────────────────
+  if (mobile) {
+    return (
+      <div style={{ height: "100vh", display: "flex", flexDirection: "column", ...S.page, position: "relative" }}>
+        {backConfirmOverlay}
+        {header}
+        <div style={{ display: "flex", borderBottom: "1px solid rgba(255,255,255,0.06)", flexShrink: 0 }}>
+          {[["board","Draft Board"],["myteam","My Picks ("+myPicks.length+")"],["history","History"]].map(([k,l]) => (
+            <button key={k} onClick={() => setTab(k)} style={{
+              flex: 1, padding: "8px 0", border: "none", cursor: "pointer",
+              borderBottom: tab === k ? "2px solid #7c3aed" : "2px solid transparent",
+              background: "transparent", color: tab === k ? "#c084fc" : "#64748b", fontSize: 12, fontWeight: 600,
+            }}>{l}</button>
+          ))}
+        </div>
+        <div style={{ flex: 1, overflow: "hidden", padding: "8px 10px", display: "flex", flexDirection: "column" }}>
+          {tab === "board"  && BoardPanel}
+          {tab === "myteam" && <div style={{ flex: 1, overflowY: "auto" }}>{TeamPanel}</div>}
+          {tab === "history" && HistoryPanel}
+        </div>
+      </div>
+    );
+  }
+
+  // ── DESKTOP ───────────────────────────────────────────────────────────────
+  return (
+    <div style={{ height: "100vh", display: "flex", flexDirection: "column", ...S.page, position: "relative" }}>
+      {backConfirmOverlay}
+      {header}
+      <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+        <div style={{ width: 255, borderRight: "1px solid rgba(255,255,255,0.06)", display: "flex", flexDirection: "column", flexShrink: 0 }}>
+          <div style={{ padding: "9px 10px 5px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: "#64748b" }}>Pick History</div>
+          {HistoryPanel}
+        </div>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "8px 14px", overflow: "hidden" }}>
+          {BoardPanel}
+        </div>
+        <div style={{ width: 235, borderLeft: "1px solid rgba(255,255,255,0.06)", display: "flex", flexDirection: "column", flexShrink: 0 }}>
+          <div style={{ padding: "9px 10px 5px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: "#7c3aed" }}>
+            My Picks ({myPicks.length})
+          </div>
+          <div style={{ flex: 1, overflowY: "auto" }}>{TeamPanel}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// COMMUNITY ADP — Google Sheets backend (real-time, cross-user)
+//                 Falls back to localStorage, then synthetic seed if offline
+// ============================================================================
+const ADP_KEY      = "rw_community_adp_v1";
+const API_BASE_URL = "https://script.google.com/macros/s/AKfycbyfcTVbqInFM48UUFgOzlibyQUJ-N2wBh0gNWwemtrGmTKc3FKxPYsb1ajAmjwxwzbh/exec";
+
+// Park-Miller LCG — deterministic RNG, used only for synthetic fallback seed
+function mkRng(seed) {
+  let s = seed;
+  return () => { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; };
+}
+
+// Synthetic seed — only used when API is unreachable AND localStorage is empty
+function generateSeedADP() {
+  const rng    = mkRng(2026);
+  const DRAFTS = 423;
+  const PICKS  = 60;
+  const meta   = { totalDrafts: DRAFTS };
+  const players = {};
+  SUPERFLEX_RANKINGS.forEach(p => { players[p.name] = { pos: p.pos, draftCount: 0, sumOvr: 0 }; });
+  for (let d = 0; d < DRAFTS; d++) {
+    const sorted = SUPERFLEX_RANKINGS
+      .map(p => ({ name: p.name, key: p.rank + (rng() - 0.5) * Math.max(2, p.rank * 0.4) }))
+      .sort((a, b) => a.key - b.key);
+    sorted.slice(0, PICKS).forEach((entry, i) => {
+      players[entry.name].draftCount++;
+      players[entry.name].sumOvr += i + 1;
+    });
+  }
+  return { meta, players };
+}
+
+// Convert Google Sheets API response → internal { meta, players } format
+// Handles boss's schema: { simCount, players: [{playerName, pos, totalPick, pickCount, ...}] }
+function apiResponseToInternal(json) {
+  const players = {};
+  const rows    = json.players || (json.data && json.data.players) || [];
+  rows.forEach(p => {
+    const name = p.playerName || p.name;
+    if (!name) return;
+    players[name] = {
+      pos:        p.pos        || "",
+      draftCount: Number(p.pickCount)  || 0,
+      sumOvr:     Number(p.totalPick)  || 0,
+    };
+  });
+  const totalDrafts = Number(
+    json.simCount        || json.totalDrafts ||
+    (json.data && (json.data.simCount || json.data.totalDrafts)) || 0
+  );
+  return { meta: { totalDrafts }, players };
+}
+
+// Load ADP: Google Sheets API → localStorage → synthetic seed (priority order)
+async function loadADPData() {
+  if (API_BASE_URL) {
+    try {
+      const controller = new AbortController();
+      const tid = setTimeout(() => controller.abort(), 6000);
+      const res = await fetch(API_BASE_URL, { signal: controller.signal });
+      clearTimeout(tid);
+      if (res.ok) {
+        const json = await res.json();
+        const data = apiResponseToInternal(json);
+        if (data.meta.totalDrafts > 0 || Object.keys(data.players).length > 0) {
+          try { localStorage.setItem(ADP_KEY, JSON.stringify(data)); } catch (_) {}
+          return data;
+        }
+      }
+    } catch (_) {}
+  }
+  try {
+    const raw = localStorage.getItem(ADP_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (_) {}
+  const seed = generateSeedADP();
+  try { localStorage.setItem(ADP_KEY, JSON.stringify(seed)); } catch (_) {}
+  return seed;
+}
+
+// Record draft: POST to Google Sheets (fire-and-forget) + update localStorage cache
+async function recordDraftToADP(allPicks) {
+  if (API_BASE_URL) {
+    try {
+      fetch(API_BASE_URL, {
+        method:  "POST",
+        mode:    "no-cors",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          picks: allPicks.map(p => ({
+            playerName: p.player?.name || "",
+            pos:        p.player?.pos  || "",
+            overall:    p.overall,
+            round:      p.round,
+            school:     "",
+            team:       "",
+          })),
+        }),
+      }).catch(() => {});
+    } catch (_) {}
+  }
+  // Also update localStorage so the board reflects this draft immediately for this user
+  try {
+    const raw  = localStorage.getItem(ADP_KEY);
+    const data = raw ? JSON.parse(raw) : generateSeedADP();
+    data.meta.totalDrafts = (data.meta.totalDrafts || 0) + 1;
+    allPicks.forEach(pick => {
+      const name = pick.player?.name;
+      if (!name) return;
+      if (!data.players[name]) data.players[name] = { pos: pick.player.pos, draftCount: 0, sumOvr: 0 };
+      data.players[name].draftCount++;
+      data.players[name].sumOvr += pick.overall;
+    });
+    localStorage.setItem(ADP_KEY, JSON.stringify(data));
+  } catch (_) {}
+}
+
+function computeADPBoard(data) {
+  const total = data.meta?.totalDrafts || 1;
+  return Object.entries(data.players)
+    .filter(([, p]) => p.draftCount > 0)
+    .map(([name, p]) => ({
+      name,
+      pos:        p.pos,
+      adp:        p.sumOvr / p.draftCount,
+      pctDrafted: (p.draftCount / total) * 100,
+    }))
+    .sort((a, b) => a.adp - b.adp);
+}
+
+// ============================================================================
+// COMMUNITY BIG BOARD
+// ============================================================================
+function CommunityBigBoard() {
+  const [posFilter, setPosFilter] = useState("ALL");
+  const [adpData,   setAdpData]   = useState(null);
+  const [loading,   setLoading]   = useState(true);
+
+  useEffect(() => {
+    loadADPData()
+      .then(data => { setAdpData(data); setLoading(false); })
+      .catch(()  => { setLoading(false); });
+  }, []);
+
+  if (loading) return (
+    <div style={{ padding: "24px 16px", textAlign: "center", color: "#64748b", fontSize: 12 }}>
+      Loading community data...
+    </div>
+  );
+  if (!adpData) return null;
+
+  const board    = computeADPBoard(adpData);
+  const filtered = posFilter === "ALL" ? board : board.filter(p => p.pos === posFilter);
+  const total    = adpData.meta?.totalDrafts || 0;
+
+  return (
+    <div style={{
+      background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)",
+      borderRadius: 12, overflow: "hidden", marginTop: 4,
+    }}>
+      {/* Header */}
+      <div style={{
+        padding: "14px 16px 10px", borderBottom: "1px solid rgba(255,255,255,0.06)",
+        background: "rgba(124,58,237,0.05)",
+      }}>
+        <div style={{ fontSize: 14, fontWeight: 800, color: "#e2e8f0", marginBottom: 2 }}>
+          Community Big Board
+        </div>
+        <div style={{ fontSize: 11, color: "#64748b" }}>
+          Consensus ADP across {total.toLocaleString()} simulations
+        </div>
+      </div>
+
+      {/* Position filter */}
+      <div style={{ padding: "10px 16px 6px", display: "flex", gap: 6, flexWrap: "wrap" }}>
+        {["ALL","QB","RB","WR","TE"].map(f => (
+          <button key={f} type="button" onClick={() => setPosFilter(f)} style={{
+            padding: "4px 10px", borderRadius: 5, fontSize: 11, fontWeight: 600, cursor: "pointer",
+            border: posFilter === f
+              ? "1px solid " + (f === "ALL" ? "#7c3aed" : POS_COLORS[f]?.border)
+              : "1px solid rgba(148,163,184,0.1)",
+            background: posFilter === f
+              ? (f === "ALL" ? "rgba(124,58,237,0.2)" : POS_COLORS[f]?.bg)
+              : "transparent",
+            color: posFilter === f
+              ? (f === "ALL" ? "#c084fc" : POS_COLORS[f]?.text)
+              : "#64748b",
+          }}>{f}</button>
+        ))}
+      </div>
+
+      {/* Column headers */}
+      <div style={{
+        display: "grid", gridTemplateColumns: "30px 1fr 44px 52px 64px",
+        padding: "5px 16px 4px",
+        fontSize: 10, fontWeight: 700, color: "#475569",
+        letterSpacing: 0.5, textTransform: "uppercase",
+        borderBottom: "1px solid rgba(255,255,255,0.05)",
+      }}>
+        <span>#</span>
+        <span>Player</span>
+        <span style={{ textAlign: "center" }}>Pos</span>
+        <span style={{ textAlign: "right" }}>ADP</span>
+        <span style={{ textAlign: "right" }}>%Drafted</span>
+      </div>
+
+      {/* Rows */}
+      <div style={{ maxHeight: 340, overflowY: "auto" }}>
+        {filtered.slice(0, 67).map((p, i) => {
+          const pc = POS_COLORS[p.pos];
+          return (
+            <div key={p.name} style={{
+              display: "grid", gridTemplateColumns: "30px 1fr 44px 52px 64px",
+              padding: "6px 16px", alignItems: "center",
+              borderBottom: "1px solid rgba(255,255,255,0.03)",
+              background: i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.01)",
+            }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#475569" }}>{i + 1}</span>
+              <span style={{ fontSize: 12, fontWeight: 600, color: "#e2e8f0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", paddingRight: 6 }}>
+                {p.name}
+              </span>
+              <span style={{ textAlign: "center" }}>
+                <span style={{
+                  display: "inline-block", fontSize: 10, fontWeight: 700,
+                  padding: "1px 5px", borderRadius: 3,
+                  background: pc?.bg, color: pc?.text, border: "1px solid " + pc?.border,
+                }}>{p.pos}</span>
+              </span>
+              <span style={{ textAlign: "right", fontSize: 12, fontWeight: 700, color: "#a78bfa" }}>
+                {p.adp.toFixed(1)}
+              </span>
+              <span style={{ textAlign: "right", fontSize: 11, color: "#64748b" }}>
+                {p.pctDrafted.toFixed(0)}%
+              </span>
+            </div>
+          );
+        })}
+        {filtered.length === 0 && (
+          <div style={{ padding: "20px", textAlign: "center", fontSize: 12, color: "#64748b" }}>
+            No data yet for this position.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// RESULTS SCREEN
+// ============================================================================
+function ResultsScreen({ picks, board, settings, onAgain }) {
+  const [copied, setCopied]           = useState(false);
+  const [showFullBoard, setShowFullBoard] = useState(false);
+  const [showBigBoard,  setShowBigBoard]  = useState(false);
+
+  // Record this draft to the community ADP pool (runs once on mount)
+  const recordedRef = useRef(false);
+  useEffect(() => {
+    if (recordedRef.current) return;
+    recordedRef.current = true;
+    recordDraftToADP(picks);
+  }, []);
+
+  // Respect custom picks when filtering user's picks
+  const myPicks = picks.filter(p => checkIsUserSlot(p, settings));
+  const grade   = calculateDraftGrade(myPicks, picks, settings.leagueSize, board);
+  const total   = myPicks.reduce((s, p) => s + p.player.adjValue, 0);
+
+  const fmt = settings.superflex ? "SF" : "1QB";
+  const scr = settings.scoring === "ppr" ? "PPR" : settings.scoring === "half_ppr" ? "Half PPR" : settings.scoring === "standard" ? "Standard" : settings.customPPR + " PPR";
+  const tep = settings.tePremium !== "off" ? " | " + settings.tePremium.toUpperCase() : "";
+
+  // Human-readable description of which picks the user controlled
+  const slotDesc = settings.customPicksEnabled && settings.userPicks && settings.userPicks.length > 0
+    ? "Picks: " + [...settings.userPicks].sort((a,b) => a.round !== b.round ? a.round-b.round : a.pick-b.pick).map(p => fmtPick(p.round, p.pick)).join(", ")
+    : "Slot " + settings.draftSlot;
+
+  const txt = "Dynasty Rookie Mock Draft Results\n"
+    + settings.leagueSize + "-team " + fmt + " | " + scr + tep + " | " + settings.numRounds + " rounds\n"
+    + slotDesc + "\n\n"
+    + myPicks.map(p => fmtPick(p.round, p.pick) + " — " + p.player.name + ", " + p.player.pos + " (Value: " + p.player.adjValue + ")").join("\n")
+    + "\n\nTotal Value: " + total.toLocaleString() + " | Grade: " + grade
+    + "\nMock drafted on RotoWire.com";
+
+  const copy = () => {
+    navigator.clipboard.writeText(txt).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); }).catch(() => {});
+  };
+
+  const gc = grade[0] === "A" ? "#34d399" : grade[0] === "B" ? "#60a5fa" : grade[0] === "C" ? "#fbbf24" : "#f87171";
+
+  // Full draft board: group all picks by round
+  const roundMap = useMemo(() => {
+    const r = {};
+    picks.forEach(p => { if (!r[p.round]) r[p.round] = []; r[p.round].push(p); });
+    return r;
+  }, [picks]);
+
+  return (
+    <div style={{ ...S.page, height: "100%", padding: "24px 16px", overflowY: "auto" }}>
+      <div style={{ maxWidth: 580, margin: "0 auto" }}>
+
+        {/* Brand */}
+        <div style={{ marginBottom: 20 }}>
+          <RotoWireLogo />
+        </div>
+
+        <div style={{ textAlign: "center", marginBottom: 20 }}>
+          <h1 style={{ fontSize: 23, fontWeight: 800, margin: "0 0 4px", ...S.gradText }}>Draft Complete</h1>
+          <p style={{ color: "#94a3b8", fontSize: 12, margin: 0 }}>
+            {settings.leagueSize}-team {fmt} | {scr}{tep} | {slotDesc}
+          </p>
+        </div>
+
+        {/* Grade card */}
+        <div style={{
+          textAlign: "center", padding: 18, borderRadius: 12,
+          background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", marginBottom: 18,
+        }}>
+          <div style={{ fontSize: 52, fontWeight: 900, color: gc, lineHeight: 1 }}>{grade}</div>
+          <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 3 }}>Draft Grade</div>
+          <div style={{ fontSize: 11, color: "#64748b", marginTop: 5, fontStyle: "italic" }}>
+            Based on adjusted dynasty value vs. expected value at each pick position
+          </div>
+          <div style={{ fontSize: 13, color: "#a78bfa", fontWeight: 600, marginTop: 8 }}>
+            Total Value: {total.toLocaleString()}
+          </div>
+        </div>
+
+        {/* My picks */}
+        <div style={{ marginBottom: 18 }}>
+          {myPicks.map((p, i) => {
+            const pc = POS_COLORS[p.player.pos];
+            return (
+              <div key={i} style={{
+                display: "flex", alignItems: "center", gap: 9, padding: "9px 11px", borderRadius: 7, marginBottom: 3,
+                background: "rgba(124,58,237,0.08)", border: "1px solid rgba(124,58,237,0.15)",
+              }}>
+                <span style={{ fontSize: 11, color: "#7c3aed", fontWeight: 700, width: 32 }}>{fmtPick(p.round, p.pick)}</span>
+                <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 7px", borderRadius: 4, background: pc.bg, color: pc.text, border: "1px solid " + pc.border }}>{p.player.pos}</span>
+                <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "#e2e8f0" }}>{p.player.name}</span>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "#a78bfa" }}>{p.player.adjValue.toLocaleString()}</div>
+                  <div style={{ fontSize: 11, color: TIER_COLORS[p.player.tier] || "#64748b", fontWeight: 600 }}>T{p.player.tier}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Full draft board toggle */}
+        <div style={{ marginBottom: 18 }}>
+          <button onClick={() => setShowFullBoard(v => !v)} style={{
+            width: "100%", padding: "9px 0", borderRadius: 8,
+            border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)",
+            color: "#94a3b8", fontSize: 12, fontWeight: 600, cursor: "pointer",
+          }}>
+            {showFullBoard ? "Hide Full Draft Board ▲" : "View Full Draft Board ▼"}
+          </button>
+
+          {showFullBoard && (
+            <div style={{ marginTop: 12 }}>
+              {Array.from({ length: settings.numRounds }, (_, i) => i + 1).map(round => (
+                <div key={round} style={{ marginBottom: 16 }}>
+                  <div style={{
+                    fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1,
+                    color: "#7c3aed", marginBottom: 6, paddingBottom: 5,
+                    borderBottom: "1px solid rgba(124,58,237,0.15)",
+                  }}>Round {round}</div>
+                  {(roundMap[round] || []).sort((a, b) => a.pick - b.pick).map((p, i) => {
+                    const pc   = POS_COLORS[p.player.pos];
+                    const isMe = checkIsUserSlot(p, settings);
+                    return (
+                      <div key={i} style={{
+                        display: "flex", alignItems: "center", gap: 8,
+                        padding: "6px 10px", borderRadius: 6, marginBottom: 2,
+                        background: isMe ? "rgba(124,58,237,0.1)" : "rgba(255,255,255,0.02)",
+                        border: isMe ? "1px solid rgba(124,58,237,0.2)" : "1px solid rgba(255,255,255,0.04)",
+                      }}>
+                        <span style={{ fontSize: 11, color: "#64748b", width: 30, flexShrink: 0, fontWeight: 600 }}>
+                          {fmtPick(round, p.pick)}
+                        </span>
+                        <span style={{ fontSize: 11, fontWeight: 700, padding: "1px 5px", borderRadius: 3, background: pc.bg, color: pc.text, border: "1px solid " + pc.border, flexShrink: 0 }}>
+                          {p.player.pos}
+                        </span>
+                        <span style={{ flex: 1, fontSize: 12, fontWeight: isMe ? 600 : 400, color: isMe ? "#e2e8f0" : "#94a3b8", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {p.player.name}
+                        </span>
+                        <span style={{ fontSize: 11, color: isMe ? "#a78bfa" : "#64748b", flexShrink: 0, fontWeight: isMe ? 600 : 400 }}>
+                          Tm{p.team}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Community Big Board toggle */}
+        <div style={{ marginBottom: 18 }}>
+          <button type="button" onClick={() => setShowBigBoard(v => !v)} style={{
+            width: "100%", padding: "9px 0", borderRadius: 8,
+            border: "1px solid rgba(124,58,237,0.25)", background: "rgba(124,58,237,0.06)",
+            color: "#a78bfa", fontSize: 12, fontWeight: 600, cursor: "pointer",
+          }}>
+            {showBigBoard ? "Hide Community Big Board ▲" : "View Community Big Board ▼"}
+          </button>
+          {showBigBoard && <CommunityBigBoard />}
+        </div>
+
+        <div style={{ display: "flex", gap: 9 }}>
+          <button onClick={copy} style={{
+            flex: 1, padding: "11px 0", borderRadius: 8, border: "1px solid rgba(124,58,237,0.3)",
+            background: "rgba(124,58,237,0.1)", color: "#c084fc", fontSize: 13, fontWeight: 600, cursor: "pointer",
+          }}>{copied ? "✓ Copied!" : "Copy to Clipboard"}</button>
+          <button onClick={onAgain} style={{
+            flex: 1, padding: "11px 0", borderRadius: 8, border: "none",
+            background: "linear-gradient(135deg, #7c3aed, #6d28d9)", color: "#fff",
+            fontSize: 13, fontWeight: 700, cursor: "pointer", boxShadow: "0 4px 16px rgba(124,58,237,0.3)",
+          }}>Draft Again</button>
+        </div>
+
+        {/* RotoWire Premium CTA */}
+        <div style={{
+          textAlign: "center", marginTop: 28, paddingTop: 18,
+          borderTop: "1px solid rgba(255,255,255,0.06)",
+          fontSize: 12, color: "#94a3b8", lineHeight: 1.6,
+        }}>
+          Get expert Dynasty analysis, rankings &amp; player profiles with{" "}
+          <a href="https://www.rotowire.com/subscribe/pricing/" target="_blank" rel="noopener noreferrer"
+            style={{ color: "#a78bfa", fontWeight: 700, textDecoration: "none" }}>
+            RotoWire Premium
+          </a>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// APP
+// ============================================================================
+function App() {
+  const [phase, setPhase]     = useState("setup");
+  const [settings, setSettings] = useState(null);
+  const [result, setResult]   = useState(null);
+  const [draftKey, setDraftKey] = useState(0);
+
+  const start    = useCallback(s  => { setSettings(s); setDraftKey(k => k + 1); setPhase("draft"); }, []);
+  const complete = useCallback((picks, board, s) => { setResult({ picks, board, settings: s }); setPhase("results"); }, []);
+  const again    = useCallback(() => { setResult(null); setPhase("setup"); }, []);
+  const back     = useCallback(() => { setPhase("setup"); }, []);
+
+  if (phase === "setup")                return <SetupScreen onStart={start} initialSettings={settings} />;
+  if (phase === "draft")                return <DraftScreen key={draftKey} settings={settings} onComplete={complete} onBack={back} />;
+  if (phase === "results" && result)    return <ResultsScreen picks={result.picks} board={result.board} settings={result.settings} onAgain={again} />;
+  return null;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
